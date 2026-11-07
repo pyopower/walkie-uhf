@@ -119,15 +119,20 @@ class MainActivity : Activity() {
         warn = text(11f, Color.rgb(255, 90, 90)).apply { gravity = Gravity.CENTER }
         col.addView(info); col.addView(warn)
 
-        col.addView(row(button("VFO") { toVfo() }, button("PMR") { pmrMenu() }, button("Repet.") { rptMenu() }))
-        col.addView(row(button("Memorias") { memories() }, button("Guardar") { save() }))
-        vol = text(13f, Color.WHITE).apply { gravity = Gravity.CENTER }
-        sq = text(13f, Color.WHITE).apply { gravity = Gravity.CENTER }
-        col.addView(row(button("−") { volume(-1) }, vol, button("+") { volume(+1) }))
-        col.addView(row(button("−") { squelch(-1) }, sq, button("+") { squelch(+1) }))
+        // las filas de botones se reparten todo el alto que sobra (dedos grandes, pantalla pequeña)
+        val grow = { LinearLayout.LayoutParams(-1, 0, 1f) }
+        col.addView(row(button("VFO") { toVfo() }, button("PMR") { pmrMenu() }, button("Repet.") { rptMenu() }), grow())
+        col.addView(row(button("Memorias") { memories() }, button("Guardar") { save() }), grow())
+        vol = text(14f, Color.WHITE).apply { gravity = Gravity.CENTER }
+        sq = text(14f, Color.WHITE).apply { gravity = Gravity.CENTER }
+        col.addView(row(button("−") { volume(-1) }, vol, button("+") { volume(+1) }), grow())
+        col.addView(row(button("−") { squelch(-1) }, sq, button("+") { squelch(+1) }), grow())
         power = button("") { togglePower() }
-        col.addView(power)
-        return ScrollView(this).apply { setBackgroundColor(BG); addView(col) }
+        col.addView(row(power), grow())
+        return ScrollView(this).apply {
+            setBackgroundColor(BG); isFillViewport = true
+            addView(col, FrameLayout.LayoutParams(-1, -1))
+        }
     }
 
     /** Pinta la frecuencia ajustando el tamaño al ancho; el punto se apaga en el latido del SCAN. */
@@ -348,13 +353,14 @@ class MainActivity : Activity() {
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     private fun button(s: String, f: () -> Unit) = Button(this).apply {
-        text = s; textSize = 12f; minHeight = 0; minimumHeight = px(34); setPadding(px(2), 0, px(2), 0)
+        text = s; textSize = 14f; minHeight = 0; minimumHeight = px(38); setPadding(px(2), 0, px(2), 0)
         setOnClickListener { f() }
     }
 
+    /** Fila horizontal; los botones ocupan todo el alto de la fila. */
     private fun row(vararg v: View) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-        v.forEach { addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)) }
+        v.forEach { addView(it, LinearLayout.LayoutParams(0, if (it is Button) -1 else -2, 1f)) }
     }
 
     /** Desplegable con letra pequeña (el de serie es enorme para 240x320). */
