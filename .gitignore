@@ -1,9 +1,9 @@
-.gradle/
-build/
+*.apk
 app/build/
 app/.cxx/
-local.properties
-*.apk
-*.png
-*.raw
+build/
 dl-font/
+.gradle/
+local.properties
+*.raw
+shot*.png
