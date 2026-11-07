@@ -23,8 +23,27 @@ object Radio {
     @Volatile var tx = false; private set
     @Volatile var status = "Apagado"; private set
     @Volatile var squelch = 3
+    /** Silenciador abierto (hay señal). Se lee del pin 136 (salida SQ del módulo, 0 = señal). */
+    @Volatile var busy = false; private set
+    private val poller = Executors.newSingleThreadScheduledExecutor()
+    init {
+        poller.scheduleAtFixedRate({
+            val b = on && !tx && readBusy()
+            if (b != busy) { busy = b; changed() }
+        }, 500, 150, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    /** Lee el estado del pin en /sys (MediaTek, legible sin root): "136:4110100-1", DIN es la 3ª cifra. */
+    fun readBusy(): Boolean = try {
+        java.io.File("/sys/devices/virtual/misc/mtgpio/pin").useLines { lines ->
+            val l = lines.map { it.trim() }.firstOrNull { it.startsWith("136:") }
+            l != null && l.length > 6 && l[6] == '0'
+        }
+    } catch (e: Exception) { false }
     var listener: (() -> Unit)? = null
     var serviceListener: (() -> Unit)? = null
+
+    fun notifyChanged(msg: String?) = changed(msg)
 
     private fun changed(msg: String? = null) {
         if (msg != null) { status = msg; Log.i(TAG, msg) }
@@ -65,6 +84,11 @@ object Radio {
     }
 
     fun apply(c: Channel) = io.execute { if (on) applyNow(c, 3) }
+
+    /** Para el escáner: cambia de canal y espera a que termine (sin mensajes en pantalla). */
+    fun applyQuiet(c: Channel): Boolean = try {
+        io.submit<Boolean> { on && c.valid() && send(groupCmd(c), 2)?.endsWith(":0") == true }.get()
+    } catch (e: Exception) { false }
 
     private fun applyNow(c: Channel, tries: Int) {
         if (!c.valid()) { changed("Fuera de banda (400-470 MHz)"); return }

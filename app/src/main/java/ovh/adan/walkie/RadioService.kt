@@ -22,10 +22,10 @@ class RadioService : Service() {
     private val keys = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, i: Intent) {
             when (i.action) {
-                PTT_DOWN -> Radio.pttOn(store.current(), store.totSec)
+                PTT_DOWN -> { Walkie.stopScan(); Radio.pttOn(store.current(), store.totSec) }
                 PTT_UP -> Radio.pttOff()
-                KNOB_INC -> Walkie.step(store, +1)
-                KNOB_DEC -> Walkie.step(store, -1)
+                KNOB_INC -> { Walkie.stopScan(); Walkie.step(store, +1) }
+                KNOB_DEC -> { Walkie.stopScan(); Walkie.step(store, -1) }
             }
         }
     }
@@ -48,6 +48,7 @@ class RadioService : Service() {
 
     override fun onDestroy() {
         Radio.serviceListener = null
+        Walkie.stopScan()
         unregisterReceiver(keys)
         Radio.pttOff()
         Radio.powerOff()
@@ -80,8 +81,53 @@ class RadioService : Service() {
 
 /** Lógica compartida entre la pantalla y el servicio. */
 object Walkie {
+    // ---------- escáner ----------
+    @Volatile var scanning = false; private set
+    private var scanThread: Thread? = null
+
+    /**
+     * Recorre el modo actual: PMR (16), repetidores (32), memorias o VFO (de scanLo a scanHi con el paso).
+     * Se para en cuanto se abre el silenciador y sigue 3 s después de que acabe la señal.
+     */
+    fun startScan(store: Store) {
+        if (scanning || !Radio.on) return
+        if (store.pmr !in 1..16 && store.rpt == 0 && store.memIndex >= 0 && store.memories.size < 2) return
+        scanning = true
+        Radio.notifyChanged("SCAN")
+        scanThread = Thread {
+            var lastSignal = 0L
+            while (scanning) {
+                if (Radio.tx) { Thread.sleep(200); continue }
+                if (Radio.readBusy()) {
+                    lastSignal = System.currentTimeMillis()
+                    Thread.sleep(150); continue
+                }
+                if (lastSignal != 0L && System.currentTimeMillis() - lastSignal < 3000) { Thread.sleep(150); continue }
+                lastSignal = 0L
+                next(store, +1, scan = true)
+                if (!Radio.applyQuiet(store.current())) { Thread.sleep(100); continue }
+                Radio.notifyChanged(null)
+                Thread.sleep(220)   // tiempo para que el silenciador reaccione en el canal nuevo
+                if (Radio.readBusy()) lastSignal = System.currentTimeMillis()
+            }
+        }.apply { isDaemon = true; start() }
+    }
+
+    fun stopScan() {
+        if (!scanning) return
+        scanning = false
+        scanThread = null
+        Radio.notifyChanged("Listo")
+    }
+
     /** Rueda o flechas: en memoria pasa a la siguiente; en VFO sube o baja un paso. */
     fun step(store: Store, dir: Int) {
+        next(store, dir, scan = false)
+        Radio.apply(store.current())
+    }
+
+    /** Avanza al canal siguiente del modo actual (en VFO, si es escáner, dentro de scanLo..scanHi). */
+    private fun next(store: Store, dir: Int, scan: Boolean) {
         val mems = store.memories
         if (store.pmr in 1..16) {
             store.pmr = (store.pmr - 1 + dir + 16) % 16 + 1
@@ -92,10 +138,10 @@ object Walkie {
             store.memIndex = ((store.memIndex + dir) % mems.size + mems.size) % mems.size
         } else {
             val v = store.vfo
-            val rx = (v.rxHz + dir * store.stepHz).coerceIn(Channel.MIN_HZ, Channel.MAX_HZ)
-            store.vfo = v.copy(rxHz = rx)
+            var rx = v.rxHz + dir * store.stepHz
+            if (scan) { if (rx > store.scanHi || rx < store.scanLo) rx = store.scanLo }
+            store.vfo = v.copy(rxHz = rx.coerceIn(Channel.MIN_HZ, Channel.MAX_HZ))
         }
-        Radio.apply(store.current())
     }
 
     fun label(store: Store): String {

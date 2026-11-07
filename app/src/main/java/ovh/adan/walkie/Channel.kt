@@ -92,6 +92,14 @@ class Store(ctx: Context) {
         get() = p.getInt("sq", 3)
         set(v) { p.edit().putInt("sq", v.coerceIn(1, 8)).apply() }
 
+    /** Límites del escáner en VFO. */
+    var scanLo: Long
+        get() = p.getLong("scanLo", 430_000_000L)
+        set(v) { p.edit().putLong("scanLo", v).apply() }
+    var scanHi: Long
+        get() = p.getLong("scanHi", 440_000_000L)
+        set(v) { p.edit().putLong("scanHi", v).apply() }
+
     var stepHz: Long
         get() = p.getLong("step", 12_500L)
         set(v) { p.edit().putLong("step", v).apply() }

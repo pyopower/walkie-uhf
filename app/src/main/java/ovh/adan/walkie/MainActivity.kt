@@ -31,6 +31,8 @@ class MainActivity : Activity() {
     private lateinit var freq: TextView
     private lateinit var info: TextView
     private lateinit var warn: TextView
+    private lateinit var signal: TextView
+    private lateinit var scan: Button
     private lateinit var freqEdit: EditText
     private lateinit var shiftSpin: Spinner
     private lateinit var shiftEdit: EditText
@@ -67,20 +69,26 @@ class MainActivity : Activity() {
         info = text(13f, Color.LTGRAY).apply { gravity = Gravity.CENTER }
         warn = text(13f, Color.rgb(255, 90, 90))
         col.addView(row(mode, status.also { it.gravity = Gravity.END }))
-        col.addView(freq); col.addView(info); col.addView(warn)
+        signal = text(14f, Color.rgb(80, 220, 120)).apply { gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD }
+        col.addView(freq); col.addView(signal); col.addView(info); col.addView(warn)
 
         ptt = Button(this).apply {
             text = "PTT"; textSize = 22f; minHeight = px(64)
             setOnTouchListener { _, e ->
                 when (e.action) {
-                    MotionEvent.ACTION_DOWN -> if (!Radio.pttOn(store.current(), store.totSec))
-                        toast(if (!Radio.on) "El módulo está apagado" else "No se puede transmitir aquí")
+                    MotionEvent.ACTION_DOWN -> {
+                        Walkie.stopScan()
+                        if (!Radio.pttOn(store.current(), store.totSec))
+                            toast(if (!Radio.on) "El módulo está apagado" else "No se puede transmitir aquí")
+                    }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> Radio.pttOff()
                 }
                 false
             }
         }
         col.addView(ptt)
+        scan = button("SCAN") { toggleScan() }
+        col.addView(scan)
 
         freqEdit = EditText(this).apply {
             hint = "MHz (p. ej. 438.950)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -93,7 +101,8 @@ class MainActivity : Activity() {
         stepSpin = spinner(steps.map { if (it >= 1_000_000) "${it / 1_000_000} MHz" else String.format(Locale.US, "%.2f kHz", it / 1000.0) }) {
             store.stepHz = steps[it]
         }
-        col.addView(row(button("◀") { Walkie.step(store, -1); refresh() }, button("▶") { Walkie.step(store, +1); refresh() },
+        col.addView(row(button("◀") { Walkie.stopScan(); Walkie.step(store, -1); refresh() },
+            button("▶") { Walkie.stopScan(); Walkie.step(store, +1); refresh() },
             label("Paso"), stepSpin))
 
         shiftSpin = spinner(listOf("Símplex", "− (baja)", "+ (sube)")) { applyShift() }
@@ -118,14 +127,14 @@ class MainActivity : Activity() {
         col.addView(row(button("Vol −") { volume(-1) }, vol, button("Vol +") { volume(+1) }))
         sq = text(16f, Color.WHITE).apply { gravity = Gravity.CENTER }
         col.addView(row(button("Sil −") { squelch(-1) }, sq, button("Sil +") { squelch(+1) }))
-        col.addView(row(button("VFO") { store.clearPresets(); store.memIndex = -1; Radio.apply(store.current()); refresh() },
+        col.addView(row(button("VFO") { Walkie.stopScan(); store.clearPresets(); store.memIndex = -1; Radio.apply(store.current()); refresh() },
             button("PMR") { pmrMenu() }, button("Repet.") { rptMenu() }))
         col.addView(row(button("Memorias") { memories() }, button("Guardar") { save() }))
         power = button("Apagar") { togglePower() }
         col.addView(power)
         col.addView(text(12f, Color.GRAY).apply {
             text = "Banda 400-470 MHz. Con el cable USB conectado entra ruido y abre el silenciador. " +
-                "Teclas de volumen = volumen del módulo (1-8). Rueda = canal o paso."
+                "Teclas de volumen = volumen del módulo (1-8). Rueda = canal o paso. SCAN se para con señal y sigue 3 s después; PTT o rueda lo detienen."
         })
         col.setOnClickListener { it.requestFocus() }   // tocar fuera de un campo cierra el teclado
         return ScrollView(this).apply { setBackgroundColor(Color.rgb(16, 16, 20)); addView(col) }
@@ -135,6 +144,7 @@ class MainActivity : Activity() {
     /** Cualquier cambio se hace sobre el VFO (si estabas en una memoria, se copia al VFO). */
     private fun edit(f: (Channel) -> Channel) {
         if (loading) return
+        Walkie.stopScan()
         val cur = store.current()
         val c = f(cur).copy(name = "")
         if (c == cur.copy(name = "")) return
@@ -174,6 +184,26 @@ class MainActivity : Activity() {
         Radio.setVolume(store.volume); refresh()
     }
 
+    /** SCAN: en PMR, repetidores o memorias recorre la lista; en VFO pregunta los límites. */
+    private fun toggleScan() {
+        if (Walkie.scanning) { Walkie.stopScan(); refresh(); return }
+        if (!Radio.on) { toast("El módulo está apagado"); return }
+        val vfo = store.pmr !in 1..16 && store.rpt == 0 && store.memories.getOrNull(store.memIndex) == null
+        if (store.memIndex >= 0 && !vfo && store.memories.size < 2) { toast("Hacen falta al menos 2 memorias"); return }
+        if (!vfo) { Walkie.startScan(store); refresh(); return }
+        val lo = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setSingleLine(); setText(Channel.mhz(store.scanLo)) }
+        val hi = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setSingleLine(); setText(Channel.mhz(store.scanHi)) }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(12), px(4), px(12), 0)
+            addView(row(label("Desde"), lo)); addView(row(label("Hasta"), hi)) }
+        AlertDialog.Builder(this).setTitle("Escanear VFO (paso ${stepSpin.selectedItem})").setView(box)
+            .setPositiveButton("Escanear") { _, _ ->
+                val a = Channel.parseMhz(lo.text.toString()); val b = Channel.parseMhz(hi.text.toString())
+                if (a == null || b == null || a >= b || a < Channel.MIN_HZ || b > Channel.MAX_HZ) { toast("Límites entre 400 y 470 MHz"); return@setPositiveButton }
+                store.scanLo = a; store.scanHi = b
+                Walkie.startScan(store); refresh()
+            }.setNegativeButton("Cancelar", null).show()
+    }
+
     private fun squelch(d: Int) {
         store.squelch = store.squelch + d
         Radio.squelch = store.squelch
@@ -192,7 +222,7 @@ class MainActivity : Activity() {
         if (mems.isEmpty()) { toast("No hay memorias. Pon un canal y pulsa Guardar."); return }
         val items = mems.mapIndexed { i, m -> "M${i + 1} ${m.name}  ${Channel.mhzShow(m.rxHz)}" + shiftTxt(m.offsetHz) }
         val d = AlertDialog.Builder(this).setTitle("Memorias (mantén pulsado para borrar)")
-            .setItems(items.toTypedArray()) { _, i -> store.clearPresets(); store.memIndex = i; Radio.apply(store.current()); refresh() }
+            .setItems(items.toTypedArray()) { _, i -> Walkie.stopScan(); store.clearPresets(); store.memIndex = i; Radio.apply(store.current()); refresh() }
             .setNegativeButton("Cerrar", null).create()
         d.show()
         d.listView.onItemLongClickListener = AdapterView.OnItemLongClickListener { _, _, i, _ ->
@@ -222,7 +252,7 @@ class MainActivity : Activity() {
         val d = AlertDialog.Builder(this).setTitle("PMR446").setView(box).setNegativeButton("Cerrar", null).create()
         list.setOnItemClickListener { _, _, i, _ ->
             store.pmrTone = tone.selectedItemPosition
-            store.rpt = 0; store.pmr = i + 1
+            Walkie.stopScan(); store.rpt = 0; store.pmr = i + 1
             Radio.apply(store.current()); refresh(); d.dismiss()
         }
         d.show()
@@ -237,7 +267,7 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this).setTitle("Repetidores UHF (−7,6 MHz)")
             .setItems(items.toTypedArray()) { _, i ->
-                store.pmr = 0; store.rpt = i + 1
+                Walkie.stopScan(); store.pmr = 0; store.rpt = i + 1
                 Radio.apply(store.current()); refresh()
             }.setNegativeButton("Cerrar", null).show()
     }
@@ -268,8 +298,10 @@ class MainActivity : Activity() {
     private fun refresh() {
         loading = true
         val c = store.current()
-        mode.text = Walkie.label(store)
+        mode.text = (if (Walkie.scanning) "SCAN · " else "") + Walkie.label(store)
         status.text = if (Radio.tx) "● TX" else Radio.status
+        signal.text = if (Radio.busy) "▮▮▮▮▮  SEÑAL" else " "
+        scan.text = if (Walkie.scanning) "PARAR SCAN" else "SCAN"
         status.setTextColor(if (Radio.tx) Color.RED else Color.LTGRAY)
         freq.text = Channel.mhzShow(if (Radio.tx) c.txHz else c.rxHz)
         freq.setTextColor(if (Radio.tx) Color.RED else Color.WHITE)
@@ -296,8 +328,8 @@ class MainActivity : Activity() {
     override fun onKeyDown(code: Int, e: KeyEvent): Boolean = when (code) {
         KeyEvent.KEYCODE_VOLUME_UP -> { volume(+1); true }
         KeyEvent.KEYCODE_VOLUME_DOWN -> { volume(-1); true }
-        KeyEvent.KEYCODE_DPAD_UP -> { Walkie.step(store, +1); refresh(); true }
-        KeyEvent.KEYCODE_DPAD_DOWN -> { Walkie.step(store, -1); refresh(); true }
+        KeyEvent.KEYCODE_DPAD_UP -> { Walkie.stopScan(); Walkie.step(store, +1); refresh(); true }
+        KeyEvent.KEYCODE_DPAD_DOWN -> { Walkie.stopScan(); Walkie.step(store, -1); refresh(); true }
         else -> super.onKeyDown(code, e)
     }
 
