@@ -138,7 +138,10 @@ object Walkie {
                 }
                 if (lastSignal != 0L && System.currentTimeMillis() - lastSignal < 3000) { Thread.sleep(150); continue }
                 lastSignal = 0L
-                next(store, dir, scan = true)
+                synchronized(this) {
+                    if (!scanning) return@Thread   // parado mientras esperaba: quedarse en este canal
+                    next(store, dir, scan = true)
+                }
                 if (!Radio.applyQuiet(store.current())) { Thread.sleep(100); continue }
                 Radio.notifyChanged(null)
                 Thread.sleep(220)   // tiempo para que el silenciador reaccione en el canal nuevo
@@ -149,7 +152,7 @@ object Walkie {
 
     fun stopScan() {
         if (!scanning) return
-        scanning = false
+        synchronized(this) { scanning = false }
         scanThread = null
         Radio.notifyChanged("Listo")
     }
