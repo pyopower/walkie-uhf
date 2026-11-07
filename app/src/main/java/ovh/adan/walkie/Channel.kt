@@ -48,6 +48,13 @@ data class Channel(
 
         fun pmr(n: Int, tone: Int) = Channel("PMR $n", pmrHz(n), 0L, tone, tone, false)
 
+        /** Repetidores UHF (IARU R1 / reglamento español): salida 438,650-439,425 cada 25 kHz,
+         *  entrada 7,6 MHz por debajo. n = 1..32 → R70..R101. */
+        const val RPT_COUNT = 32
+        fun rptHz(n: Int) = 438_650_000L + (n - 1) * 25_000L
+        fun rptName(n: Int) = "R${69 + n}"
+        fun rpt(n: Int, tone: Int) = Channel(rptName(n), rptHz(n), -7_600_000L, tone, tone, false)
+
         /** "435", "435.5", "435,500" o "435500" → Hz (null si no se entiende). */
         fun parseMhz(text: String): Long? {
             val t = text.trim().replace(',', '.')
@@ -102,6 +109,22 @@ class Store(ctx: Context) {
         get() = p.getInt("pmrTone", 13)
         set(v) { p.edit().putInt("pmrTone", v).apply() }
 
-    /** El canal que está sonando ahora: PMR, la memoria elegida o el VFO. */
-    fun current(): Channel = if (pmr in 1..16) Channel.pmr(pmr, pmrTone) else memories.getOrNull(memIndex) ?: vfo
+    /** Canal de repetidor en uso (1-32) o 0. */
+    var rpt: Int
+        get() = p.getInt("rpt", 0)
+        set(v) { p.edit().putInt("rpt", v).apply() }
+
+    /** Subtono de cada canal de repetidor (TX y RX); se queda guardado el último que pusiste. 0 = ninguno. */
+    fun rptTone(n: Int) = p.getInt("rptTone_$n", 0)
+    fun setRptTone(n: Int, t: Int) { p.edit().putInt("rptTone_$n", t).apply() }
+
+    /** Sale de PMR y de repetidores (vuelve a memoria o VFO). */
+    fun clearPresets() { pmr = 0; rpt = 0 }
+
+    /** El canal que está sonando ahora: PMR, repetidor, la memoria elegida o el VFO. */
+    fun current(): Channel = when {
+        pmr in 1..16 -> Channel.pmr(pmr, pmrTone)
+        rpt in 1..Channel.RPT_COUNT -> Channel.rpt(rpt, rptTone(rpt))
+        else -> memories.getOrNull(memIndex) ?: vfo
+    }
 }

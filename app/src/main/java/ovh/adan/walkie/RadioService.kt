@@ -84,6 +84,9 @@ object Walkie {
         val mems = store.memories
         if (store.pmr in 1..16) {
             store.pmr = (store.pmr - 1 + dir + 16) % 16 + 1
+        } else if (store.rpt in 1..Channel.RPT_COUNT) {
+            val n = Channel.RPT_COUNT
+            store.rpt = (store.rpt - 1 + dir + n) % n + 1
         } else if (store.memIndex >= 0 && mems.isNotEmpty()) {
             store.memIndex = ((store.memIndex + dir) % mems.size + mems.size) % mems.size
         } else {
@@ -96,6 +99,7 @@ object Walkie {
 
     fun label(store: Store): String {
         if (store.pmr in 1..16) return "PMR ${store.pmr}"
+        if (store.rpt in 1..Channel.RPT_COUNT) return "Repetidor ${Channel.rptName(store.rpt)}"
         val i = store.memIndex
         val m = store.memories.getOrNull(i) ?: return "VFO"
         return "M${i + 1}" + if (m.name.isNotBlank()) " ${m.name}" else ""

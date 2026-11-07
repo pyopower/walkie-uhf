@@ -60,7 +60,7 @@ class MainActivity : Activity() {
 
     // ---------- construcción de la pantalla ----------
     private fun build(): View {
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(8), px(4), px(8), px(8)) }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; isFocusableInTouchMode = true; setPadding(px(8), px(4), px(8), px(8)) }
         status = text(13f, Color.LTGRAY)
         mode = text(15f, Color.rgb(255, 200, 80)).apply { typeface = Typeface.DEFAULT_BOLD }
         freq = text(34f, Color.WHITE).apply { typeface = Typeface.MONOSPACE; gravity = Gravity.CENTER }
@@ -86,6 +86,7 @@ class MainActivity : Activity() {
             hint = "MHz (p. ej. 438.950)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
             setSingleLine(); imeOptions = EditorInfo.IME_ACTION_GO
             setOnEditorActionListener { _, _, _ -> goFreq(); true }
+            setOnFocusChangeListener { v, f -> if (!f) hideKeyboard(v) }
         }
         col.addView(row(freqEdit, button("Ir") { goFreq() }), lp())
 
@@ -100,6 +101,7 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setSingleLine()
             imeOptions = EditorInfo.IME_ACTION_DONE
             setOnEditorActionListener { _, _, _ -> applyShift(); true }
+            setOnFocusChangeListener { v, f -> if (!f) hideKeyboard(v) }
         }
         col.addView(row(label("Desplaz."), shiftSpin, shiftEdit, label("MHz")))
 
@@ -116,14 +118,16 @@ class MainActivity : Activity() {
 
         vol = text(16f, Color.WHITE).apply { gravity = Gravity.CENTER }
         col.addView(row(button("Vol −") { volume(-1) }, vol, button("Vol +") { volume(+1) }))
-        col.addView(row(button("VFO") { store.pmr = 0; store.memIndex = -1; Radio.apply(store.current()); refresh() },
-            button("PMR") { pmrMenu() }, button("Memorias") { memories() }, button("Guardar") { save() }))
+        col.addView(row(button("VFO") { store.clearPresets(); store.memIndex = -1; Radio.apply(store.current()); refresh() },
+            button("PMR") { pmrMenu() }, button("Repet.") { rptMenu() }))
+        col.addView(row(button("Memorias") { memories() }, button("Guardar") { save() }))
         power = button("Apagar") { togglePower() }
         col.addView(power)
         col.addView(text(12f, Color.GRAY).apply {
             text = "Banda 400-470 MHz. Sin subtono de RX el módulo no cierra el silenciador y suena el ruido. " +
                 "Teclas de volumen = volumen del módulo (1-8). Rueda = canal o paso."
         })
+        col.setOnClickListener { it.requestFocus() }   // tocar fuera de un campo cierra el teclado
         return ScrollView(this).apply { setBackgroundColor(Color.rgb(16, 16, 20)); addView(col) }
     }
 
@@ -134,12 +138,14 @@ class MainActivity : Activity() {
         val cur = store.current()
         val c = f(cur).copy(name = "")
         if (c == cur.copy(name = "")) return
-        // en PMR solo se puede cambiar el subtono (el mismo en TX y RX); lo demás pasa al VFO
-        if (store.pmr in 1..16 && c.copy(rxTone = cur.rxTone, txTone = cur.txTone) == cur.copy(name = "")) {
-            store.pmrTone = if (c.rxTone != cur.rxTone) c.rxTone else c.txTone
+        // en PMR y repetidores solo se cambia el subtono (el mismo en TX y RX, y se guarda); lo demás pasa al VFO
+        val preset = store.pmr in 1..16 || store.rpt in 1..Channel.RPT_COUNT
+        if (preset && c.copy(rxTone = cur.rxTone, txTone = cur.txTone) == cur.copy(name = "")) {
+            val t = if (c.rxTone != cur.rxTone) c.rxTone else c.txTone
+            if (store.pmr in 1..16) store.pmrTone = t else store.setRptTone(store.rpt, t)
             Radio.apply(store.current()); refresh(); return
         }
-        store.pmr = 0
+        store.clearPresets()
         if (!c.valid()) { toast("Fuera de banda (400-470 MHz)"); refresh(); return }
         store.vfo = c; store.memIndex = -1
         Radio.apply(c); refresh()
@@ -147,13 +153,15 @@ class MainActivity : Activity() {
 
     private fun goFreq() {
         val hz = Channel.parseMhz(freqEdit.text.toString())
-        if (hz == null || hz !in Channel.MIN_HZ..Channel.MAX_HZ) { toast("Frecuencia entre 400 y 470 MHz"); return }
+        if (hz == null || hz !in Channel.MIN_HZ..Channel.MAX_HZ) { hideKeyboard(freqEdit); toast("Frecuencia entre 400 y 470 MHz"); return }
         freqEdit.setText("")
+        hideKeyboard(freqEdit)
         edit { it.copy(rxHz = hz) }
     }
 
     private fun applyShift() {
         if (loading) return
+        hideKeyboard(shiftEdit)
         val mhz = Channel.parseMhz(shiftEdit.text.toString())
         val abs = if (mhz != null && mhz in 1..69_000_000L) mhz else store.shiftHz
         store.shiftHz = abs
@@ -178,7 +186,7 @@ class MainActivity : Activity() {
         if (mems.isEmpty()) { toast("No hay memorias. Pon un canal y pulsa Guardar."); return }
         val items = mems.mapIndexed { i, m -> "M${i + 1} ${m.name}  ${Channel.mhzShow(m.rxHz)}" + shiftTxt(m.offsetHz) }
         val d = AlertDialog.Builder(this).setTitle("Memorias (mantén pulsado para borrar)")
-            .setItems(items.toTypedArray()) { _, i -> store.pmr = 0; store.memIndex = i; Radio.apply(store.current()); refresh() }
+            .setItems(items.toTypedArray()) { _, i -> store.clearPresets(); store.memIndex = i; Radio.apply(store.current()); refresh() }
             .setNegativeButton("Cerrar", null).create()
         d.show()
         d.listView.onItemLongClickListener = AdapterView.OnItemLongClickListener { _, _, i, _ ->
@@ -208,10 +216,30 @@ class MainActivity : Activity() {
         val d = AlertDialog.Builder(this).setTitle("PMR446").setView(box).setNegativeButton("Cerrar", null).create()
         list.setOnItemClickListener { _, _, i, _ ->
             store.pmrTone = tone.selectedItemPosition
-            store.pmr = i + 1
+            store.rpt = 0; store.pmr = i + 1
             Radio.apply(store.current()); refresh(); d.dismiss()
         }
         d.show()
+    }
+
+    /** Canales de repetidor UHF con su desplazamiento; cada uno recuerda su subtono (se cambia en la pantalla). */
+    private fun rptMenu() {
+        val items = (1..Channel.RPT_COUNT).map {
+            val t = store.rptTone(it)
+            "${Channel.rptName(it)}  ${Channel.mhz(Channel.rptHz(it))}  (TX ${Channel.mhz(Channel.rptHz(it) - 7_600_000L)})" +
+                if (t > 0) "  · ${Channel.toneName(t)}" else ""
+        }
+        AlertDialog.Builder(this).setTitle("Repetidores UHF (−7,6 MHz)")
+            .setItems(items.toTypedArray()) { _, i ->
+                store.pmr = 0; store.rpt = i + 1
+                Radio.apply(store.current()); refresh()
+            }.setNegativeButton("Cerrar", null).show()
+    }
+
+    private fun hideKeyboard(v: View) {
+        (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+            .hideSoftInputFromWindow(v.windowToken, 0)
+        v.clearFocus()
     }
 
     private fun save() {
@@ -220,7 +248,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle("Guardar ${Channel.mhzShow(c.rxHz)}").setView(name)
             .setPositiveButton("Guardar") { _, _ ->
                 val l = store.memories.toMutableList(); l.add(c.copy(name = name.text.toString().trim()))
-                store.memories = l; store.pmr = 0; store.memIndex = l.size - 1; refresh()
+                store.memories = l; store.clearPresets(); store.memIndex = l.size - 1; refresh()
             }.setNegativeButton("Cancelar", null).show()
     }
 
