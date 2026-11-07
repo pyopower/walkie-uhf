@@ -10,7 +10,7 @@ import java.util.concurrent.Executors
  * se enteran de los cambios con [listener] (siempre en el hilo principal).
  *
  * Formato comprobado en el T298S: AT+DMOSETGROUP=ancho,TX,RX,subtonoRX,silenciador,subtonoTX.
- * El silenciador de portadora NO cierra en este módulo: sin subtono de RX suena el ruido.
+ * El silenciador funciona (1-8). Con el cable USB conectado entra ruido (QRM) y lo abre.
  */
 object Radio {
     private const val TAG = "WALKIE"
@@ -22,6 +22,7 @@ object Radio {
     @Volatile var on = false; private set
     @Volatile var tx = false; private set
     @Volatile var status = "Apagado"; private set
+    @Volatile var squelch = 3
     var listener: (() -> Unit)? = null
     var serviceListener: (() -> Unit)? = null
 
@@ -40,7 +41,7 @@ object Radio {
     }
 
     private fun groupCmd(c: Channel) = "AT+DMOSETGROUP=${if (c.wide) 1 else 0},${Channel.mhzCmd(c.txHz)}," +
-        "${Channel.mhzCmd(c.rxHz)},${c.rxTone},8,${c.txTone}"
+        "${Channel.mhzCmd(c.rxHz)},${c.rxTone},$squelch,${c.txTone}"
 
     /** Enciende el módulo y deja puesto el canal: primero el grupo (con subtono calla) y luego el volumen. */
     fun powerOn(c: Channel, volume: Int) = io.execute {
@@ -70,7 +71,7 @@ object Radio {
         val r = send(groupCmd(c), tries)
         changed(when {
             r == null -> "El módulo no contesta"
-            r.endsWith(":0") -> if (c.rxTone == 0) "Sin subtono de RX: sonará el ruido" else "Listo"
+            r.endsWith(":0") -> "Listo"
             else -> "El módulo rechaza el canal"
         })
     }

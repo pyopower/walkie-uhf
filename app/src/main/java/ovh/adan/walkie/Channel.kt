@@ -87,6 +87,11 @@ class Store(ctx: Context) {
         get() = p.getInt("vol", 1)
         set(v) { p.edit().putInt("vol", v.coerceIn(1, 8)).apply() }
 
+    /** Nivel del silenciador del módulo (1 = más sensible, 8 = solo señales fuertes). */
+    var squelch: Int
+        get() = p.getInt("sq", 3)
+        set(v) { p.edit().putInt("sq", v.coerceIn(1, 8)).apply() }
+
     var stepHz: Long
         get() = p.getLong("step", 12_500L)
         set(v) { p.edit().putLong("step", v).apply() }

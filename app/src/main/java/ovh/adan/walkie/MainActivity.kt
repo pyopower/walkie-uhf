@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private lateinit var wide: CheckBox
     private lateinit var stepSpin: Spinner
     private lateinit var vol: TextView
+    private lateinit var sq: TextView
     private lateinit var ptt: Button
     private lateinit var power: Button
     private var loading = false
@@ -118,13 +119,15 @@ class MainActivity : Activity() {
 
         vol = text(16f, Color.WHITE).apply { gravity = Gravity.CENTER }
         col.addView(row(button("Vol −") { volume(-1) }, vol, button("Vol +") { volume(+1) }))
+        sq = text(16f, Color.WHITE).apply { gravity = Gravity.CENTER }
+        col.addView(row(button("Sil −") { squelch(-1) }, sq, button("Sil +") { squelch(+1) }))
         col.addView(row(button("VFO") { store.clearPresets(); store.memIndex = -1; Radio.apply(store.current()); refresh() },
             button("PMR") { pmrMenu() }, button("Repet.") { rptMenu() }))
         col.addView(row(button("Memorias") { memories() }, button("Guardar") { save() }))
         power = button("Apagar") { togglePower() }
         col.addView(power)
         col.addView(text(12f, Color.GRAY).apply {
-            text = "Banda 400-470 MHz. Sin subtono de RX el módulo no cierra el silenciador y suena el ruido. " +
+            text = "Banda 400-470 MHz. Con el cable USB conectado entra ruido y abre el silenciador. " +
                 "Teclas de volumen = volumen del módulo (1-8). Rueda = canal o paso."
         })
         col.setOnClickListener { it.requestFocus() }   // tocar fuera de un campo cierra el teclado
@@ -172,6 +175,12 @@ class MainActivity : Activity() {
     private fun volume(d: Int) {
         store.volume = store.volume + d
         Radio.setVolume(store.volume); refresh()
+    }
+
+    private fun squelch(d: Int) {
+        store.squelch = store.squelch + d
+        Radio.squelch = store.squelch
+        Radio.apply(store.current()); refresh()
     }
 
     private fun togglePower() {
@@ -272,7 +281,6 @@ class MainActivity : Activity() {
         warn.text = listOfNotNull(
             if (Walkie.adnRunning(this)) "ADN PoC está en marcha: la tecla PTT transmitiría también por la red. Ciérrala." else null,
             if (store.pmr in 1..16) "PMR446: solo con la antena de serie (máx. 0,5 W PRA). La potencia del módulo no se puede bajar." else null,
-            if (c.rxTone == 0) "Sin subtono de RX: el módulo no cierra el silenciador (ruido alto)." else null,
         ).joinToString("\n")
         warn.visibility = if (warn.text.isEmpty()) View.GONE else View.VISIBLE
         shiftSpin.put(if (c.offsetHz < 0) 1 else if (c.offsetHz > 0) 2 else 0)
@@ -281,6 +289,7 @@ class MainActivity : Activity() {
         wide.isChecked = c.wide
         stepSpin.put(steps.indexOf(store.stepHz).coerceAtLeast(0))
         vol.text = "Vol ${store.volume}"
+        sq.text = "Silenc. ${store.squelch}"
         power.text = if (Radio.on) "Apagar módulo" else "Encender módulo"
         ptt.isEnabled = Radio.on
         loading = false

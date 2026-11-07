@@ -40,6 +40,7 @@ class RadioService : Service() {
             priority = IntentFilter.SYSTEM_HIGH_PRIORITY
         })
         Radio.serviceListener = { nm.notify(1, note()) }
+        Radio.squelch = store.squelch
         Radio.powerOn(store.current(), store.volume)
     }
 
