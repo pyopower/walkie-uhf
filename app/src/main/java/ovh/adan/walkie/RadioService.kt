@@ -117,11 +117,13 @@ class RadioService : Service() {
 object Walkie {
     // ---------- escáner ----------
     @Volatile var scanning = false; private set
+    /** El escáner está parado en un canal con señal (o esperando los 5 s tras ella). */
+    @Volatile var hold = false; private set
     private var scanThread: Thread? = null
 
     /**
      * Recorre el modo actual: PMR (16), repetidores (32), memorias o VFO (de scanLo a scanHi con el paso).
-     * Se para en cuanto se abre el silenciador y sigue 3 s después de que acabe la señal.
+     * Se para en cuanto se abre el silenciador y sigue 5 s después de que acabe la señal.
      */
     fun startScan(store: Store, dir: Int = +1) {
         if (scanning || !Radio.on) return
@@ -134,10 +136,12 @@ object Walkie {
                 if (Radio.tx) { Thread.sleep(200); continue }
                 if (Radio.readBusy()) {
                     lastSignal = System.currentTimeMillis()
+                    if (!hold) { hold = true; Radio.notifyChanged(null) }
                     Thread.sleep(150); continue
                 }
-                if (lastSignal != 0L && System.currentTimeMillis() - lastSignal < 3000) { Thread.sleep(150); continue }
+                if (lastSignal != 0L && System.currentTimeMillis() - lastSignal < 5000) { Thread.sleep(150); continue }
                 lastSignal = 0L
+                if (hold) { hold = false; Radio.notifyChanged(null) }
                 synchronized(this) {
                     if (!scanning) return@Thread   // parado mientras esperaba: quedarse en este canal
                     next(store, dir, scan = true)
@@ -152,7 +156,7 @@ object Walkie {
 
     fun stopScan() {
         if (!scanning) return
-        synchronized(this) { scanning = false }
+        synchronized(this) { scanning = false; hold = false }
         scanThread = null
         Radio.notifyChanged("Listo")
     }
