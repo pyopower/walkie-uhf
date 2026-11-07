@@ -15,7 +15,6 @@ import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -37,7 +36,7 @@ class MainActivity : Activity() {
     private lateinit var shiftEdit: EditText
     private lateinit var rxTone: Spinner
     private lateinit var txTone: Spinner
-    private lateinit var wide: CheckBox
+    private lateinit var wide: Button
     private lateinit var stepSpin: Spinner
     private lateinit var vol: TextView
     private lateinit var sq: TextView
@@ -111,11 +110,9 @@ class MainActivity : Activity() {
         txTone = spinner(tones) { i -> edit { it.copy(txTone = i) } }
         col.addView(row(label("Subtono RX"), rxTone))
         col.addView(row(label("Subtono TX"), txTone))
-        wide = CheckBox(this).apply {
-            text = "Ancho (25 kHz)"; setTextColor(Color.WHITE)
-            setOnCheckedChangeListener { _, c -> if (!loading) edit { it.copy(wide = c) } }
-        }
-        col.addView(wide)
+        // botón que muestra el ancho actual y cambia al tocarlo (en PMR es fijo: 12,5 kHz)
+        wide = button("") { edit { it.copy(wide = !it.wide) } }
+        col.addView(row(label("Ancho"), wide))
 
         vol = text(16f, Color.WHITE).apply { gravity = Gravity.CENTER }
         col.addView(row(button("Vol −") { volume(-1) }, vol, button("Vol +") { volume(+1) }))
@@ -286,7 +283,8 @@ class MainActivity : Activity() {
         shiftSpin.put(if (c.offsetHz < 0) 1 else if (c.offsetHz > 0) 2 else 0)
         shiftEdit.setText(Channel.mhz(if (c.offsetHz != 0L) Math.abs(c.offsetHz) else store.shiftHz).trimEnd('0').trimEnd('.'))
         rxTone.put(c.rxTone); txTone.put(c.txTone)
-        wide.isChecked = c.wide
+        wide.text = if (c.wide) "25 kHz (ancho)" else "12,5 kHz (estrecho)"
+        wide.isEnabled = store.pmr !in 1..16
         stepSpin.put(steps.indexOf(store.stepHz).coerceAtLeast(0))
         vol.text = "Vol ${store.volume}"
         sq.text = "Silenc. ${store.squelch}"

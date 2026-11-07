@@ -12,8 +12,8 @@ android {
         applicationId = "ovh.adan.walkie"
         minSdk = 19
         targetSdk = 22             // solo para el T298S (Android 4.4); sin permisos en tiempo de ejecución
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.3.1"
         ndk { abiFilters += listOf("armeabi-v7a") }
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
