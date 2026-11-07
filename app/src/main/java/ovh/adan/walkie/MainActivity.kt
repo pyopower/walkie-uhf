@@ -57,9 +57,9 @@ class MainActivity : Activity() {
     private val steps = longArrayOf(5_000, 6_250, 10_000, 12_500, 25_000, 100_000, 1_000_000)
     private val dp get() = resources.displayMetrics.density
 
-    private val NEON = Color.rgb(40, 200, 255)
+    private val NEON = Color.rgb(30, 175, 235)
     private val NEON_TX = Color.rgb(255, 70, 60)
-    private val GHOST = Color.rgb(5, 16, 23)          // segmentos apagados: apenas se intuyen
+    private val GHOST = Color.rgb(3, 10, 15)          // segmentos apagados: apenas se intuyen
     private val BG = Color.rgb(8, 8, 12)
 
     /** Latido del punto MHz/kHz cuando el SCAN se para en un canal con señal. */
@@ -105,7 +105,7 @@ class MainActivity : Activity() {
         ghost = TextView(this).apply { setTextColor(GHOST); gravity = Gravity.CENTER; typeface = seg; includeFontPadding = false }
         freq = TextView(this).apply {
             setTextColor(NEON); gravity = Gravity.CENTER; typeface = seg; includeFontPadding = false
-            setShadowLayer(4f, 0f, 0f, glow(NEON))
+            setShadowLayer(2.5f, 0f, 0f, glow(NEON))
         }
         display = FrameLayout(this).apply {
             setPadding(0, px(6), 0, px(6))
@@ -148,7 +148,7 @@ class MainActivity : Activity() {
             freq.setTextSize(TypedValue.COMPLEX_UNIT_PX, size); ghost.setTextSize(TypedValue.COMPLEX_UNIT_PX, size)
         }
         val color = if (Radio.tx) NEON_TX else NEON
-        freq.setTextColor(color); freq.setShadowLayer(4f, 0f, 0f, glow(color))
+        freq.setTextColor(color); freq.setShadowLayer(2.5f, 0f, 0f, glow(color))
         ghost.text = g
         val sp = SpannableString(s)
         val dot = s.indexOf('.')
@@ -348,7 +348,7 @@ class MainActivity : Activity() {
     }
 
     /** Resplandor suave: el mismo color a media transparencia. */
-    private fun glow(c: Int) = Color.argb(110, Color.red(c), Color.green(c), Color.blue(c))
+    private fun glow(c: Int) = Color.argb(70, Color.red(c), Color.green(c), Color.blue(c))
 
     private fun px(v: Int) = (v * dp).toInt()
     private fun text(sp: Float, color: Int) = TextView(this).apply { textSize = sp; setTextColor(color) }
