@@ -44,6 +44,8 @@ jobs:
           VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           mkdir -p out
           cp app/build/outputs/apk/*/*.apk "out/WalkieUHF-$VER.apk"
+          # copia con nombre fijo: .../releases/latest/download/WalkieUHF.apk da siempre la última
+          cp "out/WalkieUHF-$VER.apk" out/WalkieUHF.apk
           ls -la out
 
       - uses: actions/upload-artifact@v4

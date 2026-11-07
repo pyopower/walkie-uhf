@@ -33,7 +33,7 @@ App para usar el **módulo de radio analógico UHF** del PoC **Inrico T298S** (A
 
 ## Instalación
 
-1. Descarga el APK de la última versión en [Releases](../../releases).
+1. Descarga el APK de la última versión: [WalkieUHF.apk](https://github.com/pyopower/walkie-uhf/releases/latest/download/WalkieUHF.apk) (o desde [Releases](../../releases)).
 2. Instálalo en el T298S. Hay que permitir «Orígenes desconocidos» en Ajustes → Seguridad.
 3. Ábrela: enciende el módulo sola.
 
