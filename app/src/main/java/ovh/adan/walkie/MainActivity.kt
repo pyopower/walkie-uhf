@@ -134,7 +134,7 @@ class MainActivity : Activity() {
         col.addView(power)
         col.addView(text(12f, Color.GRAY).apply {
             text = "Banda 400-470 MHz. Con el cable USB conectado entra ruido y abre el silenciador. " +
-                "Teclas de volumen = volumen del módulo (1-8). Rueda = canal o paso. SCAN se para con señal y sigue 3 s después; PTT o rueda lo detienen."
+                "Teclas de volumen = volumen del módulo (1-8). Rueda y botones + − = canal o paso; mantener + o − arranca el SCAN. SCAN se para con señal y sigue 3 s después; PTT, rueda o + − lo detienen."
         })
         col.setOnClickListener { it.requestFocus() }   // tocar fuera de un campo cierra el teclado
         return ScrollView(this).apply { setBackgroundColor(Color.rgb(16, 16, 20)); addView(col) }
@@ -328,10 +328,13 @@ class MainActivity : Activity() {
     override fun onKeyDown(code: Int, e: KeyEvent): Boolean = when (code) {
         KeyEvent.KEYCODE_VOLUME_UP -> { volume(+1); true }
         KeyEvent.KEYCODE_VOLUME_DOWN -> { volume(-1); true }
+        231, 232 -> true   // botones + y −: los atiende el servicio por su aviso (también con pantalla apagada)
         KeyEvent.KEYCODE_DPAD_UP -> { Walkie.stopScan(); Walkie.step(store, +1); refresh(); true }
         KeyEvent.KEYCODE_DPAD_DOWN -> { Walkie.stopScan(); Walkie.step(store, -1); refresh(); true }
         else -> super.onKeyDown(code, e)
     }
+
+    override fun onKeyUp(code: Int, e: KeyEvent): Boolean = if (code == 231 || code == 232) true else super.onKeyUp(code, e)
 
     // ---------- utilidades ----------
     private fun px(v: Int) = (v * dp).toInt()

@@ -26,8 +26,36 @@ class RadioService : Service() {
                 PTT_UP -> Radio.pttOff()
                 KNOB_INC -> { Walkie.stopScan(); Walkie.step(store, +1) }
                 KNOB_DEC -> { Walkie.stopScan(); Walkie.step(store, -1) }
+                BTN_PLUS_DOWN -> sideDown(+1)
+                BTN_PLUS_UP -> sideUp(+1)
+                BTN_MINUS_DOWN -> sideDown(-1)
+                BTN_MINUS_UP -> sideUp(-1)
             }
         }
+    }
+
+    // --- botones + y − bajo el PTT: corta = paso/canal, mantener = SCAN, con SCAN en marcha = parar ---
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var sideDir = 0
+    private var sideConsumed = false
+    private val longPress = Runnable {
+        sideConsumed = true
+        Walkie.startScan(store, sideDir)
+    }
+
+    private fun sideDown(dir: Int) {
+        if (sideDir != 0) return            // ya hay uno pulsado
+        sideDir = dir
+        sideConsumed = Walkie.scanning
+        if (Walkie.scanning) { Walkie.stopScan(); return }
+        handler.postDelayed(longPress, 800)
+    }
+
+    private fun sideUp(dir: Int) {
+        if (dir != sideDir) return
+        handler.removeCallbacks(longPress)
+        if (!sideConsumed) Walkie.step(store, dir)
+        sideDir = 0
     }
 
     override fun onCreate() {
@@ -37,6 +65,7 @@ class RadioService : Service() {
         startForeground(1, note())
         registerReceiver(keys, IntentFilter().apply {
             addAction(PTT_DOWN); addAction(PTT_UP); addAction(KNOB_INC); addAction(KNOB_DEC)
+            addAction(BTN_PLUS_DOWN); addAction(BTN_PLUS_UP); addAction(BTN_MINUS_DOWN); addAction(BTN_MINUS_UP)
             priority = IntentFilter.SYSTEM_HIGH_PRIORITY
         })
         Radio.serviceListener = { nm.notify(1, note()) }
@@ -76,6 +105,11 @@ class RadioService : Service() {
         const val PTT_UP = "android.intent.action.PTT.up"
         const val KNOB_INC = "android.intent.channel.inc.down"
         const val KNOB_DEC = "android.intent.channel.dec.down"
+        // botones + y − bajo el PTT del T298S (teclas ZRK_ONE/ZRK_TWO, códigos 251/252)
+        const val BTN_PLUS_DOWN = "android.intent.zrk.button1.down"
+        const val BTN_PLUS_UP = "android.intent.zrk.button1.up"
+        const val BTN_MINUS_DOWN = "android.intent.zrk.button2.down"
+        const val BTN_MINUS_UP = "android.intent.zrk.button2.up"
     }
 }
 
@@ -89,7 +123,7 @@ object Walkie {
      * Recorre el modo actual: PMR (16), repetidores (32), memorias o VFO (de scanLo a scanHi con el paso).
      * Se para en cuanto se abre el silenciador y sigue 3 s después de que acabe la señal.
      */
-    fun startScan(store: Store) {
+    fun startScan(store: Store, dir: Int = +1) {
         if (scanning || !Radio.on) return
         if (store.pmr !in 1..16 && store.rpt == 0 && store.memIndex >= 0 && store.memories.size < 2) return
         scanning = true
@@ -104,7 +138,7 @@ object Walkie {
                 }
                 if (lastSignal != 0L && System.currentTimeMillis() - lastSignal < 3000) { Thread.sleep(150); continue }
                 lastSignal = 0L
-                next(store, +1, scan = true)
+                next(store, dir, scan = true)
                 if (!Radio.applyQuiet(store.current())) { Thread.sleep(100); continue }
                 Radio.notifyChanged(null)
                 Thread.sleep(220)   // tiempo para que el silenciador reaccione en el canal nuevo
@@ -139,7 +173,7 @@ object Walkie {
         } else {
             val v = store.vfo
             var rx = v.rxHz + dir * store.stepHz
-            if (scan) { if (rx > store.scanHi || rx < store.scanLo) rx = store.scanLo }
+            if (scan) { if (rx > store.scanHi) rx = store.scanLo else if (rx < store.scanLo) rx = store.scanHi }
             store.vfo = v.copy(rxHz = rx.coerceIn(Channel.MIN_HZ, Channel.MAX_HZ))
         }
     }
