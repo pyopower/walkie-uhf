@@ -68,7 +68,7 @@ class RadioService : Service() {
             addAction(BTN_PLUS_DOWN); addAction(BTN_PLUS_UP); addAction(BTN_MINUS_DOWN); addAction(BTN_MINUS_UP)
             priority = IntentFilter.SYSTEM_HIGH_PRIORITY
         })
-        Radio.serviceListener = { nm.notify(1, note()) }
+        Radio.serviceListener = { nm.notify(1, note()); txLed() }
         Radio.squelch = store.squelch
         Radio.powerOn(store.current(), store.volume)
     }
@@ -77,6 +77,7 @@ class RadioService : Service() {
 
     override fun onDestroy() {
         Radio.serviceListener = null
+        if (ledOn) Native.led(0, 0)
         Walkie.stopScan()
         unregisterReceiver(keys)
         Radio.pttOff()
@@ -96,8 +97,15 @@ class RadioService : Service() {
             .setContentText(Walkie.label(store) + " · " + Radio.status)
             .setContentIntent(open)
             .setOngoing(true)
-        if (Radio.tx) b.setLights(0xFFFF0000.toInt(), 1000, 0)   // LED rojo fijo mientras transmite
         return b.build()
+    }
+
+    // LED rojo del frontal durante la TX (/dev/led_custom, como la app de fábrica).
+    private var ledOn = false
+    private fun txLed() {
+        if (Radio.tx == ledOn) return
+        ledOn = Radio.tx
+        Native.led(0, if (ledOn) 1 else 0)
     }
 
     companion object {

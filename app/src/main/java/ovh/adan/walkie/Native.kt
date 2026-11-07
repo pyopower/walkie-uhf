@@ -5,6 +5,8 @@ object Native {
     init { System.loadLibrary("walkie") }
     @JvmStatic external fun power(on: Int): Int
     @JvmStatic external fun ptt(on: Int): Int
+    /** LED del frontal: green 0 = rojo, 1 = verde. */
+    @JvmStatic external fun led(green: Int, on: Int): Int
     @JvmStatic external fun open(path: String): Int
     @JvmStatic external fun close(fd: Int)
     @JvmStatic external fun cmd(fd: Int, line: String, idleMs: Int, maxMs: Int): String?

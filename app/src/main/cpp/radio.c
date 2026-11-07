@@ -10,12 +10,19 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 
-static int dev_ioctl(int req, int val) {
-    int fd = open("/dev/interphone_module", O_RDWR);
+static int path_ioctl(const char *path, int req, int val) {
+    int fd = open(path, O_RDWR);
     if (fd < 0) return -1;
     int r = ioctl(fd, req, &val);
     close(fd);
     return r;
+}
+
+static int dev_ioctl(int req, int val) { return path_ioctl("/dev/interphone_module", req, val); }
+
+// LED del frontal: /dev/led_custom, ioctl 0x23 = rojo, 0x24 = verde (de libLedDriver.so de fábrica).
+JNIEXPORT jint JNICALL Java_ovh_adan_walkie_Native_led(JNIEnv *e, jclass c, jint green, jint on) {
+    return path_ioctl("/dev/led_custom", green ? 0x24 : 0x23, on ? 1 : 0);
 }
 
 JNIEXPORT jint JNICALL Java_ovh_adan_walkie_Native_power(JNIEnv *e, jclass c, jint on) {

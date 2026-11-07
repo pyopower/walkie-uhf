@@ -18,6 +18,7 @@ App para usar el **módulo de radio analógico UHF** del PoC **Inrico T298S** (A
 - **Indicador de señal** (silenciador abierto).
 - **Volumen** (1-8) y **silenciador** (1-8) del módulo.
 - Display de **7 segmentos** azul neón (en rojo al transmitir).
+- **Pitido** suave al soltar el PTT (solo en el altavoz propio) y **LED rojo** del frontal mientras transmite.
 - Funciona **con la pantalla apagada** (servicio en primer plano).
 
 ### Teclas del T298S
@@ -63,6 +64,8 @@ Lo aprendido de la librería que deja el sistema (`/system/lib/libserial_port.so
   - `AT+DMOSETVOLUME=1..8`
   - `AT+DMOVERQ` → versión (`V1.00.02`)
   - No hay comandos de potencia ni de RSSI.
+- **LED del frontal**: `ioctl(open("/dev/led_custom"), 0x23, &v)` = rojo, `0x24` = verde (de `libLedDriver.so`).
+- **Audio**: el micro y el altavoz van directos al módulo. El audio de Android no sale al aire, así que no hay roger beep ni eco hacia los demás.
 - **Estado del silenciador**: GPIO **136** (salida del módulo), legible sin root en `/sys/devices/virtual/misc/mtgpio/pin` (tercera cifra de la línea `136:`; `0` = hay señal).
 - **Teclas**: el sistema manda avisos (broadcasts): `android.intent.action.PTT.down/up`, `android.intent.zrk.button1.down/up` (+), `android.intent.zrk.button2.down/up` (−) y `android.intent.channel.inc.down/dec.down` (rueda).
 

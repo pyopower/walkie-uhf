@@ -1,5 +1,8 @@
 package ovh.adan.walkie
 
+import android.media.AudioManager
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -107,6 +110,30 @@ object Radio {
     // --- PTT: directo, sin pasar por la cola del puerto serie ---
     private val tot = Runnable { if (tx) { pttOff(); changed("Tiempo máximo de TX") } }
 
+    // Pitido local al soltar el PTT (no hay al apretar: necesitaría ~0,3 s de retraso,
+    // porque el PTT corta el altavoz antes de que salga). Solo suena en el altavoz: el audio de
+    // Android no llega a la transmisión del módulo (probado en el aire).
+    // Lleva 100 ms de silencio delante: el amplificador tarda en despertar y se comía el pitido.
+    private const val RATE = 22050
+    private const val LEAD_MS = 100
+    private fun pcm(freq: Double, ms: Int, amp: Int): ShortArray {
+        val lead = RATE * LEAD_MS / 1000; val n = RATE * ms / 1000
+        val a = ShortArray(lead + n)
+        for (i in 0 until n) {
+            val env = minOf(1.0, minOf(i, n - i) / (RATE * 0.005))   // rampa de 5 ms, sin chasquidos
+            a[lead + i] = (Math.sin(2 * Math.PI * freq * i / RATE) * amp * env).toInt().toShort()
+        }
+        return a
+    }
+    private fun track(freq: Double, ms: Int, amp: Int): AudioTrack? = try {
+        val d = pcm(freq, ms, amp)
+        AudioTrack(AudioManager.STREAM_SYSTEM, RATE, AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT, d.size * 2, AudioTrack.MODE_STATIC).apply { write(d, 0, d.size) }
+    } catch (e: Exception) { null }
+    private val beepRx by lazy { track(600.0, 40, 400) }
+    private fun beep(t: AudioTrack?) {
+        try { t ?: return; t.stop(); t.reloadStaticData(); t.play() } catch (_: Exception) {}
+    }
     fun pttOn(c: Channel, totSec: Int): Boolean {
         if (!on || tx || !c.valid()) return false
         if (Native.ptt(1) < 0) { changed("PTT falló"); return false }
@@ -119,6 +146,6 @@ object Radio {
     fun pttOff() {
         main.removeCallbacks(tot)
         Native.ptt(0)
-        if (tx) { tx = false; changed("Listo") }
+        if (tx) { tx = false; beep(beepRx); changed("Listo") }
     }
 }
