@@ -14,9 +14,10 @@ App para usar el **módulo de radio analógico UHF** del PoC **Inrico T298S** (A
 - **Memorias** con nombre (mantener pulsada una memoria para borrarla).
 - **Repetidores UHF**: los 32 canales del plan IARU Región 1 (R70-R101, salida de 438,650 a 439,425 MHz, entrada −7,6 MHz). Cada canal recuerda su subtono.
 - **PMR446**: los 16 canales, con un subtono común. El ancho queda fijo en 12,5 kHz.
-- **Escáner** en VFO (entre dos límites), memorias, repetidores o PMR. Se para cuando hay señal, el punto del display late, y sigue 5 s después de que acabe la señal.
+- **Escáner** en VFO (entre dos límites), memorias, repetidores o PMR. Se para cuando hay señal (al menos 0,3 s seguidos: los golpes cortos de QRM no lo paran), el punto del display late, y sigue siempre a los 5 s de pararse.
 - **Indicador de señal** (silenciador abierto).
-- **Volumen** (1-8) y **silenciador** (1-8) del módulo.
+- **Volumen** (1-8) y **silenciador** (1-8) del módulo. El volumen 1 es el mínimo del módulo: su audio va directo al altavoz y Android no puede bajarlo más.
+- Botón **Módulo ON/OFF** (verde/rojo según el estado) y **Salir** (apaga el módulo y cierra la app).
 - Display de **7 segmentos** azul neón (en rojo al transmitir).
 - **Pitido** suave al soltar el PTT (solo en el altavoz propio) y **LED rojo** del frontal mientras transmite.
 - Funciona **con la pantalla apagada** (servicio en primer plano).
@@ -40,7 +41,7 @@ App para usar el **módulo de radio analógico UHF** del PoC **Inrico T298S** (A
 
 Requisitos: **Inrico T298S con módulo UHF** (400-470 MHz). Puede que funcione en otros PoC con el mismo módulo (busca `/dev/interphone_module` y `/dev/ttyMT0`), pero solo se ha probado en el T298S. No necesita root.
 
-> ⚠️ Con un **cable USB conectado** entra interferencia y el silenciador se abre aunque esté a 8. Es normal: desconecta el cable.
+> ⚠️ Con un **cable USB conectado** entra interferencia y el silenciador se abre aunque esté a 8. Es normal: desconecta el cable. Lo mismo con señales muy fuertes o QRM a golpes (p. ej. 433,92 MHz): para eso, subtono.
 
 ## Aviso legal
 

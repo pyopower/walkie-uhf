@@ -128,7 +128,7 @@ class MainActivity : Activity() {
         col.addView(row(button("−") { volume(-1) }, vol, button("+") { volume(+1) }), grow())
         col.addView(row(button("−") { squelch(-1) }, sq, button("+") { squelch(+1) }), grow())
         power = button("") { togglePower() }
-        col.addView(row(power), grow())
+        col.addView(row(power, button("Salir") { quit() }), grow())
         return ScrollView(this).apply {
             setBackgroundColor(BG); isFillViewport = true
             addView(col, FrameLayout.LayoutParams(-1, -1))
@@ -178,7 +178,9 @@ class MainActivity : Activity() {
         warn.visibility = if (warn.text.isEmpty()) View.GONE else View.VISIBLE
         vol.text = "Volumen ${store.volume}"
         sq.text = "Silenciador ${store.squelch}"
-        power.text = if (Radio.on) "Apagar módulo" else "Encender módulo"
+        // el texto dice el estado y su color se ve de un vistazo; tocarlo cambia al otro
+        power.text = if (Radio.on) "Módulo ON" else "Módulo OFF"
+        power.setTextColor(if (Radio.on) Color.rgb(60, 200, 90) else Color.rgb(230, 70, 60))
     }
 
     private fun shiftTxt(off: Long) = (if (off > 0) "+" else "−") +
@@ -264,7 +266,7 @@ class MainActivity : Activity() {
     private fun squelch(d: Int) {
         store.squelch = store.squelch + d
         Radio.squelch = store.squelch
-        Radio.apply(store.current()); refresh()
+        Radio.applySquelch(store.current()); refresh()
     }
 
     private fun togglePower() {
@@ -272,6 +274,15 @@ class MainActivity : Activity() {
         val i = Intent(this, RadioService::class.java)
         if (Radio.on) { Walkie.stopScan(); p.edit().putBoolean("on", false).apply(); stopService(i) }
         else { p.edit().putBoolean("on", true).apply(); startService(i) }
+    }
+
+    /** Sale del todo: apaga el módulo, para el servicio y cierra el proceso. Al volver a abrir,
+     *  el módulo se enciende o no según como estaba (no se toca la preferencia «on»). */
+    private fun quit() {
+        Walkie.stopScan()
+        stopService(Intent(this, RadioService::class.java))
+        finish()
+        ui.postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 600)
     }
 
     private fun memories() {

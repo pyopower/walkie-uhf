@@ -125,13 +125,14 @@ class RadioService : Service() {
 object Walkie {
     // ---------- escáner ----------
     @Volatile var scanning = false; private set
-    /** El escáner está parado en un canal con señal (o esperando los 5 s tras ella). */
+    /** El escáner está parado en un canal con señal (5 s y sigue). */
     @Volatile var hold = false; private set
     private var scanThread: Thread? = null
 
     /**
      * Recorre el modo actual: PMR (16), repetidores (32), memorias o VFO (de scanLo a scanHi con el paso).
-     * Se para en cuanto se abre el silenciador y sigue 5 s después de que acabe la señal.
+     * Se para en cuanto se abre el silenciador y sigue siempre a los 5 s de pararse, haya o no señal
+     * todavía: así el ruido que abre el silenciador a pulsos no deja el escáner clavado en un canal.
      */
     fun startScan(store: Store, dir: Int = +1) {
         if (scanning || !Radio.on) return
@@ -139,16 +140,15 @@ object Walkie {
         scanning = true
         Radio.notifyChanged("SCAN")
         scanThread = Thread {
-            var lastSignal = 0L
+            var holdSince = 0L
             while (scanning) {
                 if (Radio.tx) { Thread.sleep(200); continue }
-                if (Radio.readBusy()) {
-                    lastSignal = System.currentTimeMillis()
-                    if (!hold) { hold = true; Radio.notifyChanged(null) }
-                    Thread.sleep(150); continue
+                if (holdSince == 0L && steadyBusy()) {
+                    holdSince = System.currentTimeMillis()
+                    hold = true; Radio.notifyChanged(null)
                 }
-                if (lastSignal != 0L && System.currentTimeMillis() - lastSignal < 5000) { Thread.sleep(150); continue }
-                lastSignal = 0L
+                if (holdSince != 0L && System.currentTimeMillis() - holdSince < HOLD_MS) { Thread.sleep(150); continue }
+                holdSince = 0L
                 if (hold) { hold = false; Radio.notifyChanged(null) }
                 synchronized(this) {
                     if (!scanning) return@Thread   // parado mientras esperaba: quedarse en este canal
@@ -157,9 +157,15 @@ object Walkie {
                 if (!Radio.applyQuiet(store.current())) { Thread.sleep(100); continue }
                 Radio.notifyChanged(null)
                 Thread.sleep(220)   // tiempo para que el silenciador reaccione en el canal nuevo
-                if (Radio.readBusy()) lastSignal = System.currentTimeMillis()
             }
         }.apply { isDaemon = true; start() }
+    }
+    private const val HOLD_MS = 5000L
+
+    /** Señal de verdad: el silenciador sigue abierto 0,3 s seguidos. Los golpes de QRM (~0,1 s) no paran el escáner. */
+    private fun steadyBusy(): Boolean {
+        repeat(7) { if (!Radio.readBusy()) return false; Thread.sleep(50) }
+        return true
     }
 
     fun stopScan() {

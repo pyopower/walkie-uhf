@@ -88,6 +88,19 @@ object Radio {
 
     fun apply(c: Channel) = io.execute { if (on) applyNow(c, 3) }
 
+    /**
+     * Cambio de nivel del silenciador. Si el silenciador ya está abierto, el módulo no siempre lo
+     * vuelve a evaluar con el nivel nuevo (al subir de 1 a 8 con QRM se queda abierto). Saltar un
+     * momento a 1 MHz de distancia y volver le obliga a evaluarlo de cero.
+     */
+    fun applySquelch(c: Channel) = io.execute {
+        if (!on || !c.valid()) return@execute
+        val d = if (c.rxHz + 1_000_000L <= Channel.MAX_HZ) 1_000_000L else -1_000_000L
+        send(groupCmd(Channel(rxHz = c.rxHz + d, rxTone = 0, txTone = 0, wide = c.wide)), 2)
+        Thread.sleep(30)
+        applyNow(c, 3)
+    }
+
     /** Para el escáner: cambia de canal y espera a que termine (sin mensajes en pantalla). */
     fun applyQuiet(c: Channel): Boolean = try {
         io.submit<Boolean> { on && c.valid() && send(groupCmd(c), 2)?.endsWith(":0") == true }.get()
