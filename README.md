@@ -50,6 +50,7 @@ El módulo admite de **400 a 470 MHz**, y eso incluye bandas que no son de radio
 - **70 cm (430-440 MHz)**: solo con licencia de radioaficionado.
 - **PMR446**: uso libre, pero con **0,5 W PRA como máximo y la antena de serie**. La potencia de este módulo no se puede ajustar por software y no está medida.
 - El resto de la banda: solo con la autorización correspondiente.
+- **406,0-406,1 MHz**: la app **no deja transmitir** ahí (sí escuchar). Es la banda de las radiobalizas de socorro COSPAS-SARSAT (EPIRB, ELT, PLB), protegida en todo el mundo. Este módulo **no puede** hacer de baliza de emergencia: los satélites solo entienden su señal digital homologada.
 
 Esta app no está relacionada con Inrico ni con el fabricante del módulo, ni cuenta con su apoyo.
 

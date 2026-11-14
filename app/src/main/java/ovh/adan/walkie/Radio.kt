@@ -149,6 +149,7 @@ object Radio {
     }
     fun pttOn(c: Channel, totSec: Int): Boolean {
         if (!on || tx || !c.valid()) return false
+        if (c.txBlocked()) { changed(Channel.SAR_MSG); return false }
         if (Native.ptt(1) < 0) { changed("PTT falló"); return false }
         tx = true
         main.removeCallbacks(tot); main.postDelayed(tot, totSec * 1000L)

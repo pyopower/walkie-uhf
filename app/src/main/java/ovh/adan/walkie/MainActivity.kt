@@ -174,6 +174,7 @@ class MainActivity : Activity() {
         warn.text = listOfNotNull(
             if (Walkie.adnRunning(this)) "ADN PoC está en marcha: la tecla PTT transmitiría también por la red." else null,
             if (store.pmr in 1..16) "PMR446: máx. 0,5 W PRA con antena de serie." else null,
+            if (c.txBlocked()) Channel.SAR_MSG + " (solo escucha)." else null,
         ).joinToString("\n")
         warn.visibility = if (warn.text.isEmpty()) View.GONE else View.VISIBLE
         vol.text = "Volumen ${store.volume}"

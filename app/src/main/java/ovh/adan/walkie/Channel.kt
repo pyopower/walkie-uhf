@@ -16,12 +16,21 @@ data class Channel(
 
     fun valid() = rxHz in MIN_HZ..MAX_HZ && txHz in MIN_HZ..MAX_HZ
 
+    /** TX prohibida: 406,0-406,1 MHz es la banda de las radiobalizas de socorro
+     *  COSPAS-SARSAT (EPIRB, ELT, PLB), protegida en todo el mundo. Con margen
+     *  de medio canal ancho a cada lado para no invadirla por el borde.
+     *  Solo se bloquea transmitir: escuchar y escanear siguen igual. */
+    fun txBlocked() = txHz in SAR_LO..SAR_HI
+
     fun encode() = listOf(name.replace('|', ' ').replace('\n', ' '), rxHz, offsetHz, rxTone, txTone,
         if (wide) 1 else 0).joinToString("|")
 
     companion object {
         const val MIN_HZ = 400_000_000L
         const val MAX_HZ = 470_000_000L
+        const val SAR_LO = 405_987_500L
+        const val SAR_HI = 406_112_500L
+        const val SAR_MSG = "TX bloqueada: 406,0-406,1 MHz es de radiobalizas de socorro"
 
         fun decode(s: String): Channel? = runCatching {
             val p = s.split("|")
